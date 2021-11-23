@@ -1,8 +1,8 @@
 [all]
-%{ for index, dns in control_node_public_dns ~}
+%{ for index, dns in control_node_public_ip ~}
 ${dns}
 %{ endfor ~}
-%{ for index, dns in worker_node_public_dns ~}
+%{ for index, dns in worker_node_public_ip ~}
 ${dns}
 %{ endfor ~}
 
