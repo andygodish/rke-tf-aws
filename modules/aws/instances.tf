@@ -7,8 +7,6 @@ resource "random_string" "random_append" {
   special = false
 }
 
-
-
 ###########
 # KEYPAIR #
 ###########
@@ -261,7 +259,7 @@ resource "aws_instance" "k8s_master_node" {
   iam_instance_profile = aws_iam_instance_profile.k8s_master_iam_profile.name
 
   tags = {
-    Name                                        = "${var.tfuser}-control_node-${count.index}"
+    Name                                        = "${var.tfuser}_control_node_${count.index}"
     Owner                                       = var.tfuser
     "kubernetes.io/cluster/${var.cluster_name}" = "owned"
     "KubernetesCluster"                         = var.cluster_name
@@ -384,64 +382,28 @@ resource "aws_iam_instance_profile" "k8s_agent_iam_profile" {
   role = aws_iam_role.k8s_agent_iam_role.name
 }
 
-resource "aws_launch_template" "k8s_agent_launch_template" {
-  name = "k8s-agent-launch-template-${random_string.random_append.result}"
+resource "aws_instance" "k8s_agent_node" {
+  count = var.k3s_agent_count
 
-  network_interfaces {
-    associate_public_ip_address = var.is_public
-    security_groups             = [aws_security_group.k8s_agent_sg.id]
+  ami           = var.amis[var.region][var.os].ami
+  instance_type = var.k3s_agent_size
+  subnet_id     = aws_subnet.k8s_public_subnet_2.id
+  key_name      = "${var.tfuser}-keypair"
+
+  root_block_device {
+    volume_type = "standard"
+    volume_size = 20
   }
 
-  block_device_mappings {
-    device_name = "/dev/sda1"
+  vpc_security_group_ids = [aws_security_group.k8s_agent_sg.id]
 
-    ebs {
-      volume_size = 50
-    }
-  }
+  iam_instance_profile = aws_iam_instance_profile.k8s_agent_iam_profile.name
 
-  iam_instance_profile {
-    name = aws_iam_instance_profile.k8s_agent_iam_profile.name
-  }
-
-  image_id      = var.amis[var.region][var.os].ami
-  instance_type = var.k3s_server_size
-
-  monitoring {
-    enabled = true
-  }
-
-  # vpc_security_group_ids = [aws_security_group.k8s_agent_sg.id]
-
-  tag_specifications {
-    resource_type = "instance"
-
-    tags = {
-      Name                                        = "k8s-agent"
-      "kubernetes.io/cluster/${var.cluster_name}" = "owned"
-      "KubernetesCluster"                         = var.cluster_name
-    }
-  }
-
-  key_name = "${var.tfuser}-keypair"
-}
-
-resource "aws_autoscaling_group" "k8s_agent_asg" {
-  name = "k8s-agent-asg"
-
-  launch_template {
-    id      = aws_launch_template.k8s_agent_launch_template.id
-    version = "$Latest"
-  }
-
-  min_size         = var.k3s_agent_count
-  max_size         = var.k3s_agent_count
-  desired_capacity = var.k3s_agent_count
-
-  vpc_zone_identifier = [aws_subnet.k8s_public_subnet_1.id, aws_subnet.k8s_public_subnet_2.id]
-
-  lifecycle {
-    create_before_destroy = true
+  tags = {
+    Name                                        = "${var.tfuser}_agent_node_${count.index}"
+    Owner                                       = var.tfuser
+    "kubernetes.io/cluster/${var.cluster_name}" = "owned"
+    "KubernetesCluster"                         = var.cluster_name
   }
 }
 
